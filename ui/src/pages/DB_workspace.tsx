@@ -36,7 +36,6 @@ export default function DB_workspace() {
                       }
                       toast.success("Refreshed");
                     } catch (error) {
-                      console.error("Refresh error:", error);
                       toast.error("Failed to refresh");
                     } finally {
                       setIsRefreshing(false);

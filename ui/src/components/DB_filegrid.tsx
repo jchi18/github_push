@@ -139,7 +139,7 @@ export function DB_filegrid({ files, selectedFiles, onFileToggle, onSelectAll }:
           styles: diffData.styles
         });
       } catch (error) {
-        console.error('Error fetching diff:', error);
+        toast.error('Failed to load file comparison');
         setDiffContent(null);
       } finally {
         setIsLoadingDiff(false);
