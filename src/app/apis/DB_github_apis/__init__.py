@@ -9,7 +9,8 @@ from app.apis.DB_shared_models import (
     SaveTokenRequest, SaveTokenResponse, TokenResponse,
     RepoFile, RepoFilesRequest, RepoFilesResponse,
     create_github_headers, validate_repo_access,
-    validate_branch_exists, handle_github_error
+    validate_branch_exists, handle_github_error,
+    process_file_for_github
 )
 
 router = APIRouter(prefix="/github/api")
@@ -213,41 +214,10 @@ def github_push_to_repo(body: PushRequest):
             # Create a tree with the files
             new_tree = []
             for file_path in body.files:
-                try:
-                    # Add /app/ prefix if not present
-                    full_path = file_path if file_path.startswith('/app/') else f'/app/{file_path}'
-                    with open(full_path, 'r') as file:
-                        content = file.read()
-                    
-                    # Create blob
-                    blob_url = f"https://api.github.com/repos/{body.repo_name}/git/blobs"
-                    blob_data = {
-                        "content": content,
-                        "encoding": "utf-8"
-                    }
-                    blob_response = requests.post(blob_url, headers=headers, json=blob_data)
-                    
-                    if blob_response.status_code != 201:
-                        return PushResponse(
-                            success=False,
-                            message=f"Failed to create blob for {file_path}: {blob_response.json().get('message', 'Unknown error')}"
-                        )
-                    
-                    # Normalize path for GitHub
-                    # If path starts with /app/, remove it
-                    # Otherwise use path as is to maintain directory structure
-                    github_path = file_path[5:] if file_path.startswith('/app/') else file_path
-                    # Remove any leading slashes
-                    github_path = github_path.lstrip('/')
-                    tree_entry = {
-                        "path": github_path,
-                        "mode": "100644",
-                        "type": "blob",
-                        "sha": blob_response.json()["sha"]
-                    }
-                    new_tree.append(tree_entry)
-                except Exception as e:
-                    return PushResponse(success=False, message=f"Error processing {file_path}: {str(e)}")
+                tree_entry, error = process_file_for_github(file_path, body.repo_name, headers)
+                if error:
+                    return PushResponse(success=False, message=f"Error processing {file_path}: {error}")
+                new_tree.append(tree_entry)
             
             # Create tree
             create_tree_url = f"https://api.github.com/repos/{body.repo_name}/git/trees"
@@ -317,41 +287,10 @@ def github_push_to_repo(body: PushRequest):
         # Create blobs for each file
         new_tree = []
         for file_path in body.files:
-            try:
-                # Add /app/ prefix if not present
-                full_path = file_path if file_path.startswith('/app/') else f'/app/{file_path}'
-                with open(full_path, 'r') as file:
-                    content = file.read()
-                
-                # Create blob
-                blob_url = f"https://api.github.com/repos/{body.repo_name}/git/blobs"
-                blob_data = {
-                    "content": content,
-                    "encoding": "utf-8"
-                }
-                blob_response = requests.post(blob_url, headers=headers, json=blob_data)
-                
-                if blob_response.status_code != 201:
-                    return PushResponse(
-                        success=False,
-                        message=f"Failed to create blob for {file_path}: {blob_response.json().get('message', 'Unknown error')}"
-                    )
-                
-                # Normalize path for GitHub
-                # If path starts with /app/, remove it
-                # Otherwise use path as is to maintain directory structure
-                github_path = file_path[5:] if file_path.startswith('/app/') else file_path
-                # Remove any leading slashes
-                github_path = github_path.lstrip('/')
-                tree_entry = {
-                    "path": github_path,
-                    "mode": "100644",
-                    "type": "blob",
-                    "sha": blob_response.json()["sha"]
-                }
-                new_tree.append(tree_entry)
-            except Exception as e:
-                return PushResponse(success=False, message=f"Error processing {file_path}: {str(e)}")
+            tree_entry, error = process_file_for_github(file_path, body.repo_name, headers)
+            if error:
+                return PushResponse(success=False, message=f"Error processing {file_path}: {error}")
+            new_tree.append(tree_entry)
         
         # Create new tree
         create_tree_url = f"https://api.github.com/repos/{body.repo_name}/git/trees"

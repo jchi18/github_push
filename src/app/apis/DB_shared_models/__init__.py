@@ -64,6 +64,58 @@ def handle_github_error(error: Exception, default_message: str = "GitHub API err
         raise HTTPException(status_code=400, detail=str(error)) from error
     raise HTTPException(status_code=400, detail=default_message) from error
 
+def process_file_for_github(file_path: str, repo_name: str, headers: dict) -> tuple[dict, str]:
+    """Process a file for GitHub, creating a blob and normalizing the path.
+    
+    Args:
+        file_path: The path to the file in the workspace
+        repo_name: The name of the GitHub repository
+        headers: The GitHub API headers
+        
+    Returns:
+        tuple: (tree_entry, error_message)
+        - tree_entry: Dict with path, mode, type, and sha for the GitHub tree
+        - error_message: Error message if any, empty string if successful
+    """
+    try:
+        # Add /app/ prefix if not present
+        full_path = file_path if file_path.startswith('/app/') else f'/app/{file_path}'
+        
+        # Read file content
+        with open(full_path, 'r') as file:
+            content = file.read()
+        
+        # Create blob
+        blob_url = f"https://api.github.com/repos/{repo_name}/git/blobs"
+        blob_data = {
+            "content": content,
+            "encoding": "utf-8"
+        }
+        blob_response = requests.post(blob_url, headers=headers, json=blob_data)
+        
+        if blob_response.status_code != 201:
+            return None, f"Failed to create blob: {blob_response.json().get('message', 'Unknown error')}"
+        
+        # Normalize path for GitHub
+        # If path starts with /app/, remove it
+        # Otherwise use path as is to maintain directory structure
+        github_path = file_path[5:] if file_path.startswith('/app/') else file_path
+        # Remove any leading slashes
+        github_path = github_path.lstrip('/')
+        
+        # Create tree entry
+        tree_entry = {
+            "path": github_path,
+            "mode": "100644",
+            "type": "blob",
+            "sha": blob_response.json()["sha"]
+        }
+        
+        return tree_entry, ""
+        
+    except Exception as e:
+        return None, f"Error processing file: {str(e)}"
+
 # Auth Models
 class AuthRequest(BaseModel):
     token: str
