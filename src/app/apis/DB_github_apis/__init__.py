@@ -74,6 +74,7 @@ def github_save_token(body: SaveTokenRequest):
 @router.post("/repo-files", response_model=RepoFilesResponse)
 def github_get_repo_files(body: RepoFilesRequest):
     print(f"Fetching files for repo: {body.repo_name}, branch: {body.branch}")
+    print(f"Using token: {body.token[:4]}...{body.token[-4:]}")
     try:
         # Validate input
         if not body.repo_name or not body.branch or not body.token:
@@ -102,11 +103,16 @@ def github_get_repo_files(body: RepoFilesRequest):
         # Get contents recursively using the Contents API
         contents_url = f"https://api.github.com/repos/{body.repo_name}/contents"
         print(f"Fetching contents from: {contents_url}")
+        print(f"Using branch: {body.branch}")
         
         def get_directory_contents(path=""):
             url = f"{contents_url}/{path}" if path else contents_url
             print(f"Fetching contents from: {url}")
+            print(f"Making request to: {url} with ref: {body.branch}")
             response = requests.get(url, headers=headers, params={"ref": body.branch})
+            print(f"Response status: {response.status_code}")
+            if response.status_code != 200:
+                print(f"Error response: {response.text}")
             
             if response.status_code != 200:
                 print(f"Failed to get contents for path {path}: {response.status_code}")
@@ -115,6 +121,8 @@ def github_get_repo_files(body: RepoFilesRequest):
             contents = response.json()
             if not isinstance(contents, list):
                 print(f"Unexpected response format for path {path}")
+                print(f"Response type: {type(contents)}")
+                print(f"Response content: {contents}")
                 return []
             
             all_contents = []
@@ -135,7 +143,36 @@ def github_get_repo_files(body: RepoFilesRequest):
         repo_files = []
         for item in all_files:
             # Get file content from the contents API response
-            content = base64.b64decode(item["content"]).decode('utf-8') if item.get("content") else ""
+            print(f"Processing file: {item['path']}")
+            print(f"File data: {item.keys()}")
+            
+            if 'content' not in item:
+                print(f"No content field for {item['path']}, fetching directly")
+                # If content is not included, fetch it directly
+                file_url = item['url']
+                file_response = requests.get(file_url, headers=headers)
+                if file_response.status_code == 200:
+                    file_data = file_response.json()
+                    if 'content' in file_data:
+                        try:
+                            content = base64.b64decode(file_data['content']).decode('utf-8')
+                            print(f"Successfully fetched and decoded content for {item['path']}, length: {len(content)}")
+                        except Exception as e:
+                            print(f"Error decoding content for {item['path']}: {str(e)}")
+                            content = ""
+                    else:
+                        print(f"No content in direct file response for {item['path']}")
+                        content = ""
+                else:
+                    print(f"Failed to fetch file content for {item['path']}: {file_response.status_code}")
+                    content = ""
+            else:
+                try:
+                    content = base64.b64decode(item['content']).decode('utf-8')
+                    print(f"Successfully decoded content for {item['path']}, length: {len(content)}")
+                except Exception as e:
+                    print(f"Error decoding content from item for {item['path']}: {str(e)}")
+                    content = ""
             
             # Get commit info for the file
             commits_url = f"https://api.github.com/repos/{body.repo_name}/commits"

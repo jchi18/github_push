@@ -5,6 +5,12 @@ import re
 
 router = APIRouter(prefix="/diff/api")
 
+@router.get("/test")
+def test_diff_api():
+    print("Diff API test endpoint called")
+    return {"status": "ok"}
+
+
 class DiffRequest(BaseModel):
     workspace_content: str
     repo_content: str
@@ -15,6 +21,15 @@ class DiffResponse(BaseModel):
     styles: str
 
 def create_diff_html(text1: str, text2: str) -> tuple[str, str]:
+    # Normalize line endings to LF
+    text1 = text1.replace('\r\n', '\n')
+    text2 = text2.replace('\r\n', '\n')
+    
+    # Normalize trailing whitespace and indentation
+    text1 = '\n'.join(line.rstrip().replace('    ', '\t').replace('\t', '    ') for line in text1.split('\n'))
+    text2 = '\n'.join(line.rstrip().replace('    ', '\t').replace('\t', '    ') for line in text2.split('\n'))
+    
+    # Create diff
     dmp = diff_match_patch()
     diffs = dmp.diff_main(text1, text2)
     dmp.diff_cleanupSemantic(diffs)
@@ -142,6 +157,12 @@ def escape_html(text: str) -> str:
 
 @router.post("/diff")
 def diff_get_diff(body: DiffRequest) -> DiffResponse:
+    print(f"Comparing file: {body.filename}")
+    print(f"Workspace content length: {len(body.workspace_content)}")
+    print(f"Repo content length: {len(body.repo_content)}")
+    print(f"First 100 chars of workspace content: {body.workspace_content[:100]}")
+    print(f"First 100 chars of repo content: {body.repo_content[:100]}")
+
     # Ensure we have valid strings to compare
     repo_content = body.repo_content if body.repo_content is not None else ""
     workspace_content = body.workspace_content if body.workspace_content is not None else ""

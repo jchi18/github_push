@@ -48,6 +48,11 @@ export interface ComparisonFile extends WorkspaceFile {
   last_modified?: string
 }
 
+function normalizeContent(content: string): string {
+  // Normalize line endings and remove trailing whitespace
+  return content.replace(/\r\n/g, '\n').replace(/\s+$/g, '')
+}
+
 export function getFileCategory(path: string): FileCategory {
   if (path.includes('/apis/')) return 'backend'
   if (path.includes('/pages/')) return 'page'
@@ -56,6 +61,7 @@ export function getFileCategory(path: string): FileCategory {
 }
 
 async function getFileContent(path: string): Promise<{ content: string; last_modified: string }> {
+  console.log('Getting content for file:', path)
   try {
     const response = await fetch(`${API_URL}/workspace/api/read-file`, {
       method: 'POST',
@@ -104,7 +110,7 @@ export async function compareFiles(workspaceFiles: FileInfo[], repoFiles: RepoFi
     let status: FileStatus = 'unchanged'
     if (!repoFile) {
       status = 'new'
-    } else if (wsContent !== repoFile.content) {
+    } else if (normalizeContent(wsContent) !== normalizeContent(repoFile.content)) {
       status = 'modified'
     }
 
@@ -230,6 +236,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
         credentials: 'include'
       })
 
+
       if (!response.ok) {
         set({ token: '' }); // Clear token if save fails
         const errorData = await response.json().catch(() => ({}))
@@ -257,6 +264,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
       }
 
       const data = await response.json()
+
       // No token is a valid case, just return without error
       if (!data?.token) {
         return
@@ -438,7 +446,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
     if (!token || !selectedRepo) return
 
     try {
-      console.log('Fetching repo files:', { selectedRepo, currentBranch });
+
       const response = await fetch(`${API_URL}/github/api/repo-files`, {
       method: 'POST',
       headers: {

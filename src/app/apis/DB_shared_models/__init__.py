@@ -97,11 +97,9 @@ def process_file_for_github(file_path: str, repo_name: str, headers: dict) -> tu
             return None, f"Failed to create blob: {blob_response.json().get('message', 'Unknown error')}"
         
         # Normalize path for GitHub
-        # If path starts with /app/, remove it
-        # Otherwise use path as is to maintain directory structure
-        github_path = file_path[5:] if file_path.startswith('/app/') else file_path
-        # Remove any leading slashes
-        github_path = github_path.lstrip('/')
+        # Always use the path as is to maintain directory structure
+        # Just remove any leading slashes to make it relative
+        github_path = file_path.lstrip('/')
         
         # Create tree entry
         tree_entry = {

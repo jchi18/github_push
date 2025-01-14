@@ -55,7 +55,6 @@ def workspace_read_file(body: ReadFileRequest):
         if not file_path.startswith('/app/'):
             file_path = f'/app/{file_path}'
         
-        print(f"Reading file from: {file_path}")
         # Read the file content
         with open(file_path, 'r') as f:
             content = f.read()
